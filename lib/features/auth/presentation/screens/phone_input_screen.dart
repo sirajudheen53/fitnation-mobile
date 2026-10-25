@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/phone_validator.dart';
 import '../providers/auth_notifier.dart';
+import '../providers/auth_providers.dart';
 
 /// Phone number input screen — first step of OTP auth flow.
 class PhoneInputScreen extends ConsumerStatefulWidget {
@@ -24,11 +26,15 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
     super.dispose();
   }
 
+  bool get _isFirebaseMode => AppConstants.authMode == AuthMode.firebase;
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     final phone = PhoneValidator.normalize(_phoneController.text);
-    final success = await ref.read(authProvider.notifier).requestOtp(phone);
+    final success = _isFirebaseMode
+        ? await ref.read(firebasePhoneAuthProvider.notifier).sendCode(phone)
+        : await ref.read(authProvider.notifier).requestOtp(phone);
 
     if (success && mounted) {
       context.go('/otp', extra: phone);
@@ -38,6 +44,14 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final phoneAuthState = ref.watch(firebasePhoneAuthProvider);
+
+    final isLoading = _isFirebaseMode
+        ? phoneAuthState.isLoading
+        : authState.isLoading;
+    final errorMessage = _isFirebaseMode
+        ? (phoneAuthState.errorMessage ?? authState.errorMessage)
+        : authState.errorMessage;
 
     return Scaffold(
       body: SafeArea(
@@ -59,16 +73,15 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
                 Text(
                   'Welcome to FitNation',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Enter your phone number to get started',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: AppTheme.textSecondary),
                 ),
 
                 const SizedBox(height: 32),
@@ -89,7 +102,7 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
                 ),
 
                 // Error message
-                if (authState.errorMessage != null) ...[
+                if (errorMessage != null) ...[
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -99,12 +112,19 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppTheme.error,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            authState.errorMessage!,
-                            style: TextStyle(color: AppTheme.error, fontSize: 13),
+                            errorMessage,
+                            style: TextStyle(
+                              color: AppTheme.error,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -116,12 +136,15 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
 
                 // Submit button
                 ElevatedButton(
-                  onPressed: authState.isLoading ? null : _submit,
-                  child: authState.isLoading
+                  onPressed: isLoading ? null : _submit,
+                  child: isLoading
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text('Send OTP'),
                 ),

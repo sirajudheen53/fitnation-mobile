@@ -6,15 +6,26 @@ import '../../../../core/errors/failures.dart';
 import '../../data/data_sources/api_client.dart';
 import '../../data/data_sources/auth_local_data_source.dart';
 import '../../data/data_sources/auth_remote_data_source.dart';
+import '../../data/data_sources/firebase_auth_client.dart';
 import '../../data/models/auth_response.dart';
 import '../../data/models/user_model.dart';
 
+/// Narrow contract for Firebase-backed login (session exchange).
+/// Lets the phone-auth state holder be unit tested with a fake.
+abstract class FirebaseAuthRepository {
+  Future<({AuthResponse? response, Failure? error})> loginWithFirebaseIdToken(
+    String idToken, {
+    String? gym,
+  });
+}
+
 /// Repository that coordinates local and remote auth data sources.
-class AuthRepository {
+class AuthRepository implements FirebaseAuthRepository {
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
+  final FirebaseAuthClient? _firebase;
 
-  AuthRepository(this._remote, this._local);
+  AuthRepository(this._remote, this._local, [this._firebase]);
 
   /// Requests an OTP for the given phone number.
   Future<({Failure? error})> requestOtp(String phone) async {
@@ -25,6 +36,37 @@ class AuthRepository {
       return (error: e);
     } catch (e) {
       return (error: UnknownFailure(message: e.toString()));
+    }
+  }
+
+  /// Signs in via Firebase ID token: POST /auth/firebase/ and stores the
+  /// session exactly like [verifyOtp] does.
+  @override
+  Future<({AuthResponse? response, Failure? error})> loginWithFirebaseIdToken(
+    String idToken, {
+    String? gym,
+  }) async {
+    try {
+      final deviceInfo = await _getDeviceInfo();
+      final response = await _remote.firebaseLogin(
+        idToken: idToken,
+        gym: gym,
+        deviceType: deviceInfo.type,
+      );
+
+      // Persist auth state
+      await _local.saveToken(response.token);
+      await _local.saveUser(response.user);
+      await _local.savePermissions(response.permissions);
+
+      // Update API client with new token
+      ApiClient.getInstance(token: response.token);
+
+      return (response: response, error: null);
+    } on Failure catch (e) {
+      return (response: null, error: e);
+    } catch (e) {
+      return (response: null, error: UnknownFailure(message: e.toString()));
     }
   }
 
@@ -60,7 +102,8 @@ class AuthRepository {
   }
 
   /// Restores the auth session from local storage (auto-login).
-  ({UserModel? user, List<String> permissions, String? token}) restoreSession() {
+  ({UserModel? user, List<String> permissions, String? token})
+  restoreSession() {
     final token = _local.getToken();
     final user = _local.getUser();
     final permissions = _local.getPermissions();
@@ -73,10 +116,18 @@ class AuthRepository {
   }
 
   /// Logs out the user and clears local data.
+  ///
+  /// Server-side token deactivation and Firebase sign-out are best-effort:
+  /// they must never block clearing the local session.
   Future<void> logout() async {
     try {
       await _remote.logout();
+    } catch (_) {
+      // Best-effort — proceed with local cleanup.
     } finally {
+      try {
+        await _firebase?.signOut();
+      } catch (_) {}
       await _local.clear();
       ApiClient.reset();
     }
@@ -84,16 +135,24 @@ class AuthRepository {
 
   /// Gets the current user profile from the server (refresh).
   Future<({UserModel? user, List<String>? permissions, Failure? error})>
-      refreshProfile() async {
+  refreshProfile() async {
     try {
       final response = await _remote.getCurrentUser();
       await _local.saveUser(response.user);
       await _local.savePermissions(response.permissions);
-      return (user: response.user, permissions: response.permissions, error: null);
+      return (
+        user: response.user,
+        permissions: response.permissions,
+        error: null,
+      );
     } on Failure catch (e) {
       return (user: null, permissions: null, error: e);
     } catch (e) {
-      return (user: null, permissions: null, error: UnknownFailure(message: e.toString()));
+      return (
+        user: null,
+        permissions: null,
+        error: UnknownFailure(message: e.toString()),
+      );
     }
   }
 
@@ -117,7 +176,8 @@ class AuthRepository {
       final info = await deviceInfo.androidInfo;
       type = 'android';
       id = info.id;
-      userAgent = 'FitNationApp/Android ${info.version.release} (${info.model})';
+      userAgent =
+          'FitNationApp/Android ${info.version.release} (${info.model})';
     } else if (Platform.isIOS) {
       final info = await deviceInfo.iosInfo;
       type = 'ios';

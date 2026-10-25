@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/auth_response.dart';
 import '../../data/models/user_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_providers.dart';
@@ -112,6 +113,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return true;
   }
 
+  /// Marks a session as established from any login path (backend OTP verify,
+  /// Firebase ID-token exchange). Persistence itself happens in the repository.
+  void completeLogin(AuthResponse response) {
+    state = AuthState(
+      status: AuthStatus.authenticated,
+      user: response.user,
+      permissions: response.permissions,
+    );
+  }
+
   /// Logs out the user.
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
@@ -121,7 +132,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Clears any error message.
   void clearError() {
-    state = state.copyWith(errorMessage: null, status: AuthStatus.unauthenticated);
+    state = state.copyWith(
+      errorMessage: null,
+      status: AuthStatus.unauthenticated,
+    );
   }
 }
 
