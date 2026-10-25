@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:35318880783:android:be7078e037bcf7ce59a17a",
+        "mobilesdk_app_id": "1:35318880783:android:aa2ecfa5999e006359a17a",
         "android_client_info": {
-          "package_name": "com.fitnation.fitnation_app"
+          "package_name": "com.getfitwithus.app"
         }
       },
       "oauth_client": [],

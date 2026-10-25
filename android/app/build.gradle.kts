@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.fitnation.fitnation_app"
+    namespace = "com.getfitwithus.app"
     compileSdk = flutter.compileSdkVersion
     // NDK line disabled: pure-Dart app needs no NDK, and the 750MB NDK download
     // was impractically slow on this connection. Restore if you ever add a plugin
@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.fitnation.fitnation_app"
+        // Released Play Store identity — immutable after first upload (mobile report 2026-10-25).
+        applicationId = "com.getfitwithus.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -52,4 +52,11 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // WhatsApp zero-tap authentication (OTP Android SDK):
+    // https://developers.facebook.com/docs/whatsapp/business-management-api/authentication-templates/zero-tap-authentication-templates
+    implementation("com.whatsapp.otp:whatsapp-otp-android-sdk:1.0.0")
+    testImplementation("junit:junit:4.13.2")
 }

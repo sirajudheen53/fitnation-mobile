@@ -54,7 +54,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBNooGVKZrNBFhbicMW6R9a-UPup0wg-1g',
-    appId: '1:35318880783:android:be7078e037bcf7ce59a17a',
+    // Android app com.getfitwithus.app (released Play package). Replaces the
+    // deleted com.fitnation.fitnation_app registration — do not regress.
+    appId: '1:35318880783:android:aa2ecfa5999e006359a17a',
     messagingSenderId: '35318880783',
     projectId: 'yougetfitwithus',
     storageBucket: 'yougetfitwithus.firebasestorage.app',
