@@ -100,7 +100,12 @@ class FirebaseAuthClientImpl implements FirebaseAuthClient {
   Future<void> signOut() => _firebaseAuth.signOut();
 
   Future<String> _signInAndFetchIdToken(PhoneAuthCredential credential) async {
-    final userCredential = await _firebaseAuth.signInWithCredential(credential);
+    final UserCredential userCredential;
+    try {
+      userCredential = await _firebaseAuth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw mapFirebaseAuthException(e);
+    }
     final user = userCredential.user;
     if (user == null) {
       throw const AuthFailure(message: 'Sign-in failed. Please try again.');

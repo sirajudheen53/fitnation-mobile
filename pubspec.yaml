@@ -45,6 +45,11 @@ dev_dependencies:
     sdk: flutter
   mockito: ^5.4.4
 
+  # Platform interfaces (unit-test fakes for FirebaseAuth; direct deps so the
+  # depend_on_referenced_packages lint passes on test imports).
+  firebase_auth_platform_interface: ^9.1.2
+  firebase_core_platform_interface: ^8.1.1
+
 flutter:
   uses-material-design: true
 
