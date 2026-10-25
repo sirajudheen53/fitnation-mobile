@@ -6,6 +6,7 @@ import '../../data/data_sources/auth_local_data_source.dart';
 import '../../data/data_sources/auth_remote_data_source.dart';
 import '../../data/data_sources/firebase_auth_client.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../services/whatsapp_otp_service.dart';
 import 'auth_notifier.dart';
 import 'firebase_phone_auth_notifier.dart';
 
@@ -48,3 +49,9 @@ final firebasePhoneAuthProvider =
         },
       );
     });
+
+/// Provides the WhatsApp zero-tap OTP service seam.
+/// Overridden with a fake/recorder in tests (no real platform channels).
+final whatsappOtpServiceProvider = Provider<WhatsAppOtpService>((ref) {
+  return WhatsAppOtpService();
+});

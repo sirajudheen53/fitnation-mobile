@@ -8,12 +8,17 @@ import '../features/dashboard/presentation/screens/dashboard_screen.dart';
 
 /// App router with GoRouter, using auth state for redirects.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  // Only re-create the router when authentication itself flips (login /
+  // logout). Watching the full auth state would re-create it on transient
+  // writes too (e.g. the loading toggles of a backend OTP request), which
+  // resets navigation to the initial route mid-flow.
+  final isAuthenticated = ref.watch(
+    authProvider.select((state) => state.isAuthenticated),
+  );
 
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
-      final isAuthenticated = authState.isAuthenticated;
       final isAuthRoute = state.matchedLocation == '/' ||
           state.matchedLocation == '/otp';
 

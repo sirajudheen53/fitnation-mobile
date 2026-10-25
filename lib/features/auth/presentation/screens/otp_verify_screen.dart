@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,6 +30,9 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
     (_) => FocusNode(),
   );
 
+  StreamSubscription<String>? _zeroTapSubscription;
+  bool _verifyInFlight = false;
+
   bool _resendCooldown = false;
   int _cooldownSeconds = 0;
 
@@ -35,10 +40,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   void initState() {
     super.initState();
     _startResendCooldown();
+    // WhatsApp zero-tap: auto-fill + verify when a code broadcast arrives.
+    // Errors are ignored by design — manual entry keeps working.
+    _zeroTapSubscription = ref
+        .read(whatsappOtpServiceProvider)
+        .codeStream()
+        .listen(
+          _applyZeroTapCode,
+          onError: (Object _) {},
+        );
   }
 
   @override
   void dispose() {
+    unawaited(_zeroTapSubscription?.cancel());
     for (final c in _controllers) {
       c.dispose();
     }
@@ -80,6 +95,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   }
 
   Future<void> _verify() async {
+    if (_verifyInFlight) return;
+
     final otp = _controllers.map((c) => c.text).join();
 
     if (otp.length != AppConstants.otpLength) {
@@ -89,16 +106,36 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       return;
     }
 
-    final success = await _verifyOtp(otp);
+    _verifyInFlight = true;
+    try {
+      final success = await _verifyOtp(otp);
 
-    if (!success && mounted) {
-      // Clear OTP inputs on error
-      for (final c in _controllers) {
-        c.clear();
+      if (!success && mounted) {
+        // Clear OTP inputs on error
+        for (final c in _controllers) {
+          c.clear();
+        }
+        _focusNodes.first.requestFocus();
       }
-      _focusNodes.first.requestFocus();
+      // On success, the router will redirect to dashboard automatically.
+    } finally {
+      _verifyInFlight = false;
     }
-    // On success, the router will redirect to dashboard automatically.
+  }
+
+  /// Auto-fills the boxes with a zero-tap code and verifies it. Codes that do
+  /// not match the expected digit shape are ignored — manual entry keeps
+  /// working.
+  Future<void> _applyZeroTapCode(String code) async {
+    final digits = code.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != AppConstants.otpLength || _verifyInFlight) return;
+    if (!mounted) return;
+
+    for (var i = 0; i < AppConstants.otpLength; i++) {
+      _controllers[i].text = digits[i];
+    }
+    setState(() {});
+    await _verify();
   }
 
   Future<void> _resendOtp() async {
@@ -109,7 +146,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         ? await ref
               .read(firebasePhoneAuthProvider.notifier)
               .sendCode(widget.phone)
-        : await ref.read(authProvider.notifier).requestOtp(widget.phone);
+        : await _requestBackendOtp();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,6 +159,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         ),
       );
     }
+  }
+
+  /// Backend OTP re-request. Zero-tap: the WhatsApp handshake must be started
+  /// before the server dispatches the message — WhatsApp honours zero-tap
+  /// only within the handshake window.
+  Future<bool> _requestBackendOtp() async {
+    await ref.read(whatsappOtpServiceProvider).startHandshake();
+    return ref.read(authProvider.notifier).requestOtp(widget.phone);
   }
 
   void _onOtpChanged(int index, String value) {

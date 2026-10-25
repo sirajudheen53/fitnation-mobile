@@ -21,8 +21,14 @@ class AppConstants {
     'FBOS_USE_FIREBASE_AUTH',
     defaultValue: true,
   );
+
+  /// Test-only override for [authMode]; null (the default) keeps the
+  /// compile-time behaviour. Never set outside test code.
+  static AuthMode? debugAuthModeOverride;
+
   static AuthMode get authMode =>
-      _useFirebaseAuth ? AuthMode.firebase : AuthMode.backendOtp;
+      debugAuthModeOverride ??
+      (_useFirebaseAuth ? AuthMode.firebase : AuthMode.backendOtp);
 
   /// Base URL for the FBOS API.
   /// Override for real devices / other environments with:

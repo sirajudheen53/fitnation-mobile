@@ -34,11 +34,19 @@ class _PhoneInputScreenState extends ConsumerState<PhoneInputScreen> {
     final phone = PhoneValidator.normalize(_phoneController.text);
     final success = _isFirebaseMode
         ? await ref.read(firebasePhoneAuthProvider.notifier).sendCode(phone)
-        : await ref.read(authProvider.notifier).requestOtp(phone);
+        : await _requestBackendOtp(phone);
 
     if (success && mounted) {
       context.go('/otp', extra: phone);
     }
+  }
+
+  /// Backend OTP request. Zero-tap: the WhatsApp handshake must be started
+  /// before the server dispatches the message — WhatsApp honours zero-tap
+  /// only within the handshake window.
+  Future<bool> _requestBackendOtp(String phone) async {
+    await ref.read(whatsappOtpServiceProvider).startHandshake();
+    return ref.read(authProvider.notifier).requestOtp(phone);
   }
 
   @override

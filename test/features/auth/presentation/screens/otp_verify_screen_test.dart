@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -264,5 +265,80 @@ void main() {
     expect(phoneNotifier.state.verificationId, 'vid-2');
 
     await drainResendCooldown(tester);
+  });
+
+  group('WhatsApp zero-tap broadcasts', () {
+    // The messenger's handler registry is keyed by channel name, so a
+    // MethodChannel with the event channel's name mocks its listen protocol.
+    const eventsChannelForMocks = MethodChannel(
+      'com.getfitwithus.app/whatsapp_otp/events',
+    );
+
+    void mockEventsChannel() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(eventsChannelForMocks, (call) async => null);
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding
+            .instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(eventsChannelForMocks, null),
+      );
+    }
+
+    /// Simulates WhatsApp delivering a zero-tap code broadcast.
+    Future<void> pushZeroTapCode(WidgetTester tester, Object? event) async {
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            eventsChannelForMocks.name,
+            const StandardMethodCodec().encodeSuccessEnvelope(event),
+            (ByteData? data) {},
+          );
+      await tester.pump();
+    }
+
+    testWidgets('a code broadcast auto-fills the boxes and signs in', (
+      tester,
+    ) async {
+      presetState(
+        const FirebasePhoneAuthState(
+          step: PhoneAuthStep.codeSent,
+          verificationId: 'vid-1',
+        ),
+      );
+      mockEventsChannel();
+      await pumpApp(tester);
+      await openOtpScreen(tester);
+
+      await pushZeroTapCode(tester, '987654');
+      await tester.pumpAndSettle();
+
+      expect(firebase.confirmCalls.single.smsCode, '987654');
+      expect(container.read(authProvider).isAuthenticated, isTrue);
+      expect(find.text('Welcome back,'), findsOneWidget); // on the dashboard
+
+      await drainResendCooldown(tester);
+    });
+
+    testWidgets('a payload without 6 digits is ignored (manual entry)', (
+      tester,
+    ) async {
+      presetState(
+        const FirebasePhoneAuthState(
+          step: PhoneAuthStep.codeSent,
+          verificationId: 'vid-1',
+        ),
+      );
+      mockEventsChannel();
+      await pumpApp(tester);
+      await openOtpScreen(tester);
+
+      await pushZeroTapCode(tester, '12ab45');
+      await tester.pumpAndSettle();
+
+      expect(firebase.confirmCalls, isEmpty);
+      expect(container.read(authProvider).isAuthenticated, isFalse);
+      expect(find.text('Enter verification code'), findsOneWidget);
+
+      await drainResendCooldown(tester);
+    });
   });
 }

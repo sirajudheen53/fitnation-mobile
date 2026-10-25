@@ -30,6 +30,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- WhatsApp zero-tap authentication: WhatsApp broadcasts the OTP code
+             to this receiver (action per Meta's OTP Android SDK) after the app
+             has started a handshake. Exported is required — the broadcast
+             originates from the WhatsApp client.
+             https://developers.facebook.com/docs/whatsapp/business-management-api/authentication-templates/zero-tap-authentication-templates -->
+        <receiver
+            android:name=".otp.WhatsAppOtpCodeReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.whatsapp.otp.OTP_RETRIEVED"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -41,5 +55,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Package visibility for the WhatsApp OTP handshake (see receiver above):
+             handshake support is detected by querying the WhatsApp clients'
+             OTP_REQUESTED receivers. -->
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
     </queries>
 </manifest>
