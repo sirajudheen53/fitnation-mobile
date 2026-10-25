@@ -7,7 +7,10 @@ plugins {
 android {
     namespace = "com.fitnation.fitnation_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // NDK line disabled: pure-Dart app needs no NDK, and the 750MB NDK download
+    // was impractically slow on this connection. Restore if you ever add a plugin
+    // with native C/C++ code (AGP will then ask for an NDK).
+    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
